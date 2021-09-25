@@ -23,3 +23,8 @@ jobs:
 
     - name: Test
       run: go test -v ./...
+
+    - name: Create Tag
+      run: |
+        git tag v0.0.${{ github.run_number }}
+        git push https://fox-md:$GH_TOKEN@github.com/$GITHUB_REPOSITORY v0.0.${{ github.run_number }}
