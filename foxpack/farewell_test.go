@@ -1,4 +1,4 @@
-package farewell
+package foxpack
 
 import (
 	"regexp"
