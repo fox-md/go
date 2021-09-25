@@ -1,4 +1,4 @@
-package greetings
+package foxpack
 
 import (
 	"errors"
@@ -6,7 +6,7 @@ import (
 )
 
 // Hello returns a greeting for the named person.
-func Hello(name string) (string, error) {
+func Goodbye(name string) (string, error) {
 	// Return a greeting that embeds the name in a message.
 	if name == "" {
 		return name, errors.New("empty name")
