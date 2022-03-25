@@ -12,6 +12,10 @@ Run tests
 ```
 go clean -testcache && go test ./... -v -cover -coverprofile cover.out
 ```
+Run single test with 10 min timeout
+```
+go test -run TestR53 -timeout 10m
+```
 This will show you the code coverage for every single package withing your project and down at the bottom the total coverage.
 ```
 go tool cover -func cover.out
