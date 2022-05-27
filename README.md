@@ -24,3 +24,11 @@ Convert tests to html
 ```
 go tool cover -html=cover.out -o cover.html
 ```
+
+Enable linux build on Windows
+```
+set GOARCH=amd64
+set GOOS=linux
+go tool dist install -v pkg/runtime
+go install -v -a std
+```
