@@ -32,3 +32,8 @@ set GOOS=linux
 go tool dist install -v pkg/runtime
 go install -v -a std
 ```
+
+Build static binary
+```
+go build --ldflags "-linkmode external -extldflags -static" main.go
+```
