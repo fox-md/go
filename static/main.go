@@ -1,12 +1,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/gorilla/mux"
 )
 
 var Version = "N/A"
@@ -25,6 +31,7 @@ type podInfo struct {
 	Namespace string
 	PodIp     string
 	PodSA     string
+	Version   string
 }
 
 func getPodInfo() (podInfo podInfo) {
@@ -58,7 +65,7 @@ func getPodInfo() (podInfo podInfo) {
 	podInfo.Namespace = ns
 	podInfo.PodIp = ip
 	podInfo.PodSA = sa
-
+	podInfo.Version = Version
 	return
 }
 
@@ -84,7 +91,7 @@ func HelloServer(w http.ResponseWriter, req *http.Request) {
 }
 
 func handleInfo(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(http.StatusCreated) // set response code 201
 	w.Header().Set("Content-Type", "application/json")
 
 	info := appInfo{
@@ -101,7 +108,7 @@ func handleInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func handlePodInfo(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(http.StatusOK) // set response code 200
 	w.Header().Set("Content-Type", "application/json")
 
 	podInfo := getPodInfo()
@@ -116,24 +123,83 @@ func handlePodInfo(w http.ResponseWriter, r *http.Request) {
 func main() {
 
 	var enableTLS bool
-	var err error
+	var enableShutdownDelay bool
+	var shutdownDelay int
 
 	flag.BoolVar(&enableTLS, "tls", false, "Enable tls")
+	flag.BoolVar(&enableShutdownDelay, "delay", false, "Enable Shutdown Delay")
+	flag.IntVar(&shutdownDelay, "timeout", 30, "Shutdown delay. Default: 30 sec")
 	flag.Parse()
 
-	http.HandleFunc("/", HelloServer)
-	http.HandleFunc("/about", handleInfo)
-	http.HandleFunc("/pod", handlePodInfo)
+	router := mux.NewRouter()
+	router.HandleFunc("/", HelloServer).Methods("GET")
+	router.HandleFunc("/about", handleInfo).Methods("GET")
+	router.HandleFunc("/pod", handlePodInfo).Methods("GET")
 
-	if enableTLS {
-		err = http.ListenAndServeTLS(":8443", "server.crt", "server.key", nil)
-		log.Print("Starting TLS listener on port 8443")
-	} else {
-		err = http.ListenAndServe(":8080", nil)
-		log.Print("Starting listener on port 8080")
-	}
-	if err != nil {
-		log.Fatal("ListenAndServe: ", err)
+	server := &http.Server{
+		Handler: router,
 	}
 
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop,
+		syscall.SIGHUP,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT)
+
+	go func() {
+		if enableTLS {
+			log.Print("Starting TLS listener on port 8443")
+			server.Addr = ":8443"
+			if err := server.ListenAndServeTLS("server.crt", "server.key"); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("listen: %s\n", err)
+			}
+		} else {
+			log.Print("Starting listener on port 8080")
+			server.Addr = ":8080"
+			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("listen: %s\n", err)
+			}
+		}
+	}()
+
+	log.Print("Server Started")
+	s := <-stop
+
+	switch s {
+
+	case syscall.SIGHUP:
+		log.Print("Signal hang up triggered.")
+
+	case syscall.SIGINT:
+		log.Print("Signal interrupt triggered.")
+
+	case syscall.SIGTERM:
+		log.Print("Signal terminte triggered.")
+
+	case syscall.SIGQUIT:
+		log.Print("Signal quit triggered.")
+
+	default:
+		log.Print("Unhandel signal.")
+	}
+
+	log.Print("Server Stopped")
+
+	ctx, cancel := context.WithTimeout(context.Background(), (time.Duration(shutdownDelay)+5)*time.Second)
+	defer func() {
+		// extra handling here
+		cancel()
+	}()
+
+	if enableShutdownDelay {
+		log.Print("Delay for ", shutdownDelay, " seconds before socket shutdown")
+		time.Sleep(time.Duration(shutdownDelay) * time.Second)
+	}
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Fatalf("Server Shutdown Failed:%+v", err)
+	}
+
+	log.Print("Server Exited Properly")
 }

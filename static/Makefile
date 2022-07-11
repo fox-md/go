@@ -1,7 +1,9 @@
 GIT_HASH=`git rev-parse --short HEAD || echo 0000`
 BUILD_DATE=`date +%FT%T%z`
 
+VERSION="1.0.0"
 TAG="static"
+PORT="8080"
 
 BIN=main
 SRC=main.go
@@ -18,10 +20,10 @@ build: vet
         go build -ldflags "${LDFLAGS}" -o "${BIN}" "${SRC}"
 
 image: vet
-        docker build -t "${TAG}" --no-cache=true .
+        docker build --build-arg Version="${VERSION}" -t "${TAG}:${VERSION}" --no-cache=true .
 
 run:
-        docker run --rm -p 443\:8443 "${TAG}"
+        docker run --rm -p "${PORT}"\:"${PORT}" "${TAG}"
 
 stop:
         docker rm -f "${TAG}" || true
@@ -34,3 +36,12 @@ lint: vet
 
 clean:
         [ -f "${BIN}" ] && rm "${BIN}"
+
+login:
+        aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws/agu
+
+tag: image
+        docker tag "${TAG}:${VERSION}" public.ecr.aws/agu/misc:"${TAG}-${VERSION}"
+
+push: tag login
+        docker push public.ecr.aws/agu/misc:"${TAG}-${VERSION}"
