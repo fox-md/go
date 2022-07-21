@@ -90,6 +90,27 @@ func HelloServer(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte(getIpAddress()))
 }
 
+func ShowHeaders(w http.ResponseWriter, req *http.Request) {
+	var headers string
+	for name, values := range req.Header {
+		// Loop over all values for the name.
+		for _, value := range values {
+			headers += name + "=" + value + "\n"
+		}
+	}
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte(headers))
+}
+
+func ShowCookies(w http.ResponseWriter, req *http.Request) {
+	var cookies string
+	for _, c := range req.Cookies() {
+		cookies += c.String() + "\n"
+	}
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte(cookies))
+}
+
 func handleInfo(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated) // set response code 201
 	w.Header().Set("Content-Type", "application/json")
@@ -135,6 +156,8 @@ func main() {
 	router.HandleFunc("/", HelloServer).Methods("GET")
 	router.HandleFunc("/about", handleInfo).Methods("GET")
 	router.HandleFunc("/pod", handlePodInfo).Methods("GET")
+	router.HandleFunc("/cookies", ShowCookies).Methods("GET")
+	router.HandleFunc("/headers", ShowHeaders).Methods("GET")
 
 	server := &http.Server{
 		Handler: router,
