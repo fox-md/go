@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"io/ioutil"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -32,6 +34,15 @@ type podInfo struct {
 	PodIp     string
 	PodSA     string
 	Version   string
+}
+
+type oidcPayload struct {
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	Iss      string `json:"iss"`
+	Exp      int    `json:"exp"`
+	Sub      string `json:"sub"`
+	Verified string `json:"email_verified"`
 }
 
 func getPodInfo() (podInfo podInfo) {
@@ -85,9 +96,46 @@ func getIpAddress() string {
 	}
 }
 
+func ParseELBOIDCHeaders(r *http.Request) (accessToken string, oidcId string, oidc oidcPayload) {
+	oidcData := strings.Split(r.Header.Get("X-Amzn-Oidc-Data"), ".")
+	accessToken = r.Header.Get("X-Amzn-Oidc-Accesstoken")
+	if len(accessToken) == 0 {
+		accessToken = "N/A"
+	}
+
+	oidcId = r.Header.Get("X-Amzn-Oidc-Identity")
+	if len(oidcId) == 0 {
+		oidcId = "N/A"
+	}
+
+	if len(oidcData) == 3 {
+		data, err := base64.StdEncoding.DecodeString(oidcData[1])
+		if err != nil {
+			log.Fatal("error:", err)
+		}
+		err = json.Unmarshal([]byte(data), &oidc)
+		if err != nil {
+			log.Fatal("error:", err)
+		}
+	} else {
+		oidc = oidcPayload{}
+	}
+	return accessToken, oidcId, oidc
+}
+
 func HelloServer(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write([]byte(getIpAddress()))
+}
+
+func HandleMe(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_, _, oidc := ParseELBOIDCHeaders(req)
+	jsonResp, err := json.Marshal(oidc)
+	if err != nil {
+		log.Fatalf("Error happened in JSON marshal. Err: %s", err)
+	}
+	w.Write(jsonResp)
 }
 
 func ShowHeaders(w http.ResponseWriter, req *http.Request) {
@@ -158,6 +206,7 @@ func main() {
 	router.HandleFunc("/pod", handlePodInfo).Methods("GET")
 	router.HandleFunc("/cookies", ShowCookies).Methods("GET")
 	router.HandleFunc("/headers", ShowHeaders).Methods("GET")
+	router.HandleFunc("/me", HandleMe).Methods("GET")
 
 	server := &http.Server{
 		Handler: router,
