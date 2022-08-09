@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+labels:
+  name: go-static-app
+metadata:
+  name: go-static-app
+spec:
+  containers:
+  - image: public.ecr.aws/agu/misc:static-1.0.0
+    name: app
+    volumeMounts:
+    - name: ca-cm
+      mountPath: /etc/ssl/certs/k8s-ca.pem
+      subPath: ca.crt
+      readOnly: true
+  volumes:
+  - name: ca-cm
+    configMap:
+      name: kube-root-ca.crt
