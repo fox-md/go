@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -96,6 +97,22 @@ func getIpAddress() string {
 	}
 }
 
+func callKubeApi() string {
+	resp, err := http.Get("https://kubernetes.default/api")
+	if err != nil {
+		log.Print(err.Error())
+		return err.Error()
+	} else {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Print(err.Error())
+		}
+		sb := string(body) + "\n"
+		log.Println(sb)
+		return sb
+	}
+}
+
 func ParseELBOIDCHeaders(r *http.Request) (accessToken string, oidcId string, oidc oidcPayload) {
 	oidcData := strings.Split(r.Header.Get("X-Amzn-Oidc-Data"), ".")
 	accessToken = r.Header.Get("X-Amzn-Oidc-Accesstoken")
@@ -126,6 +143,11 @@ func ParseELBOIDCHeaders(r *http.Request) (accessToken string, oidcId string, oi
 func HelloServer(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write([]byte(getIpAddress()))
+}
+
+func HandleKubeApi(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte(callKubeApi()))
 }
 
 func HandleMe(w http.ResponseWriter, req *http.Request) {
@@ -194,10 +216,12 @@ func main() {
 	var enableTLS bool
 	var enableShutdownDelay bool
 	var shutdownDelay int
+	var listenerPort int
 
 	flag.BoolVar(&enableTLS, "tls", false, "Enable tls")
 	flag.BoolVar(&enableShutdownDelay, "delay", false, "Enable Shutdown Delay")
 	flag.IntVar(&shutdownDelay, "timeout", 30, "Shutdown delay. Default: 30 sec")
+	flag.IntVar(&listenerPort, "port", 8080, "Binding port for http listener. Default: 8080")
 	flag.Parse()
 
 	router := mux.NewRouter()
@@ -207,6 +231,7 @@ func main() {
 	router.HandleFunc("/cookies", ShowCookies).Methods("GET")
 	router.HandleFunc("/headers", ShowHeaders).Methods("GET")
 	router.HandleFunc("/me", HandleMe).Methods("GET")
+	router.HandleFunc("/kubeapi", HandleKubeApi).Methods("GET")
 
 	server := &http.Server{
 		Handler: router,
@@ -227,8 +252,8 @@ func main() {
 				log.Fatalf("listen: %s\n", err)
 			}
 		} else {
-			log.Print("Starting listener on port 8080")
-			server.Addr = ":8080"
+			log.Println("Starting listener on port", listenerPort)
+			server.Addr = ":" + strconv.Itoa(listenerPort)
 			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				log.Fatalf("listen: %s\n", err)
 			}
