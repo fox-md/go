@@ -17,31 +17,31 @@ export GOARCH=amd64
 .PHONY: clean build
 
 build: vet
-        go build -ldflags "${LDFLAGS}" -o "${BIN}" "${SRC}"
+	go build -ldflags "${LDFLAGS}" -o "${BIN}" "${SRC}"
 
 image: vet
-        docker build --build-arg Version="${VERSION}" -t "${TAG}:${VERSION}" --no-cache=true .
+	docker build --build-arg Version="${VERSION}" -t "${TAG}:${VERSION}" --no-cache=true .
 
 run:
-        docker run --rm -p "${PORT}"\:"${PORT}" "${TAG}"
+	docker run --rm -p "${PORT}"\:"${PORT}" "${TAG}"
 
 stop:
-        docker rm -f "${TAG}" || true
+	docker rm -f "${TAG}" || true
 
 vet:
-        go vet ./...
+	go vet ./...
 
 lint: vet
-        golangci-lint run
+	golangci-lint run
 
 clean:
-        [ -f "${BIN}" ] && rm "${BIN}"
+	[ -f "${BIN}" ] && rm "${BIN}"
 
 login:
-        aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws/agu
+	aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws/agu
 
 tag: image
-        docker tag "${TAG}:${VERSION}" public.ecr.aws/agu/misc:"${TAG}-${VERSION}"
+	docker tag "${TAG}:${VERSION}" public.ecr.aws/agu/misc:"${TAG}-${VERSION}"
 
 push: tag login
-        docker push public.ecr.aws/agu/misc:"${TAG}-${VERSION}"
+	docker push public.ecr.aws/agu/misc:"${TAG}-${VERSION}"
